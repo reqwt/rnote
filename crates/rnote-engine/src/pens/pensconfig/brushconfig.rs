@@ -27,6 +27,8 @@ pub enum BrushStyle {
     Solid,
     #[serde(rename = "textured")]
     Textured,
+    #[serde(rename = "chisel", alias = "calligraphy")]
+    Chisel,
 }
 
 impl Default for BrushStyle {
@@ -97,6 +99,33 @@ impl std::ops::DerefMut for SolidOptions {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename = "chisel_options")]
+pub struct ChiselOptions(SmoothOptions);
+
+impl Default for ChiselOptions {
+    fn default() -> Self {
+        let mut options = SmoothOptions::default();
+        options.stroke_width = 8.0;
+        options.tip_profile = rnote_compose::style::smooth::TipProfile::chisel_default();
+        Self(options)
+    }
+}
+
+impl std::ops::Deref for ChiselOptions {
+    type Target = SmoothOptions;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ChiselOptions {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename = "brush_config")]
 pub struct BrushConfig {
@@ -110,6 +139,8 @@ pub struct BrushConfig {
     pub solid_options: SolidOptions,
     #[serde(rename = "textured_options")]
     pub textured_options: TexturedOptions,
+    #[serde(default, rename = "chisel_options")]
+    pub chisel_options: ChiselOptions,
 }
 
 impl BrushConfig {
@@ -119,7 +150,7 @@ impl BrushConfig {
     pub(crate) fn layer_for_current_options(&self) -> StrokeLayer {
         match &self.style {
             BrushStyle::Marker => StrokeLayer::Highlighter,
-            BrushStyle::Solid | BrushStyle::Textured => StrokeLayer::UserLayer(0),
+            BrushStyle::Solid | BrushStyle::Textured | BrushStyle::Chisel => StrokeLayer::UserLayer(0),
         }
     }
 
@@ -145,6 +176,11 @@ impl BrushConfig {
                 let options = self.textured_options.clone();
 
                 Style::Textured(options)
+            }
+            BrushStyle::Chisel => {
+                let ChiselOptions(options) = self.chisel_options.clone();
+
+                Style::Smooth(options)
             }
         }
     }

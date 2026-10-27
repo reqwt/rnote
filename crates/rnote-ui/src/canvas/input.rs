@@ -418,12 +418,34 @@ fn retrieve_pointer_elements(
                 axes[crate::utils::axis_use_idx(gdk::AxisUse::Y)],
             ));
             let pressure = if is_stylus {
-                axes[crate::utils::axis_use_idx(gdk::AxisUse::Pressure)]
+                axes.get(crate::utils::axis_use_idx(gdk::AxisUse::Pressure))
+                    .copied()
+                    .unwrap_or(Element::PRESSURE_DEFAULT)
             } else {
                 Element::PRESSURE_DEFAULT
             };
+            let (tilt_x, tilt_y, orientation) = if is_stylus {
+                let tx = axes
+                    .get(crate::utils::axis_use_idx(gdk::AxisUse::Xtilt))
+                    .copied()
+                    .unwrap_or(0.0);
+                let ty = axes
+                    .get(crate::utils::axis_use_idx(gdk::AxisUse::Ytilt))
+                    .copied()
+                    .unwrap_or(0.0);
+                let rot = axes
+                    .get(crate::utils::axis_use_idx(gdk::AxisUse::Rotation))
+                    .copied();
+                let orient = Element::calc_orientation(tx, ty, rot);
+                (tx, ty, orient)
+            } else {
+                (0.0, 0.0, 0.0)
+            };
 
-            entries.push((Element::new(pos, pressure), entry_time));
+            entries.push((
+                Element::new_with_tilt(pos, pressure, tilt_x, tilt_y, orientation),
+                entry_time,
+            ));
         }
 
         elements.extend(entries.into_iter().rev());
@@ -439,7 +461,20 @@ fn retrieve_pointer_elements(
         Element::PRESSURE_DEFAULT
     };
 
-    elements.push((Element::new(pos, pressure), now));
+    let (tilt_x, tilt_y, orientation) = if is_stylus {
+        let tx = event.axis(gdk::AxisUse::Xtilt).unwrap_or(0.0);
+        let ty = event.axis(gdk::AxisUse::Ytilt).unwrap_or(0.0);
+        let rot = event.axis(gdk::AxisUse::Rotation);
+        let orient = Element::calc_orientation(tx, ty, rot);
+        (tx, ty, orient)
+    } else {
+        (0.0, 0.0, 0.0)
+    };
+
+    elements.push((
+        Element::new_with_tilt(pos, pressure, tilt_x, tilt_y, orientation),
+        now,
+    ));
 
     Some(elements)
 }

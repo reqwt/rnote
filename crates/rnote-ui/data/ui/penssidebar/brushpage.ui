@@ -50,6 +50,16 @@
                 </style>
               </object>
             </child>
+            <child>
+              <object class="GtkToggleButton" id="brushstyle_chisel_toggle">
+                <property name="group">brushstyle_solid_toggle</property>
+                <property name="tooltip_text" translatable="yes">Chisel</property>
+                <property name="icon-name">pen-brush-style-symbolic</property>
+                <style>
+                  <class name="sidebar_action_button" />
+                </style>
+              </object>
+            </child>
           </object>
         </child>
         <child>
@@ -154,6 +164,20 @@ Results in the best looking handwriting.</property>
             <object class="AdwPreferencesGroup">
               <property name="title" translatable="yes">Solid Style</property>
               <child>
+                <object class="AdwComboRow" id="solidstyle_tip_profile_row">
+                  <property name="title" translatable="yes">Tip Profile</property>
+                  <property name="subtitle" translatable="yes">Choose brush tip profile</property>
+                  <property name="model">
+                    <object class="GtkStringList">
+                      <items>
+                        <item translatable="yes">Circular (Round)</item>
+                        <item translatable="yes">Chisel (Flat Nib)</item>
+                      </items>
+                    </object>
+                  </property>
+                </object>
+              </child>
+              <child>
                 <object class="AdwComboRow" id="solidstyle_pressure_curves_row">
                   <property name="title" translatable="yes">Pressure Curve</property>
                   <property name="subtitle" translatable="yes">Choose a pressure curve</property>
@@ -169,6 +193,39 @@ Results in the best looking handwriting.</property>
                       </items>
                     </object>
                   </property>
+                </object>
+              </child>
+            </object>
+          </child>
+          <child>
+            <!-- Chisel options -->
+            <object class="AdwPreferencesGroup" id="chisel_options_group">
+              <property name="title" translatable="yes">Chisel Nib Configuration</property>
+              <child>
+                <object class="AdwSpinRow" id="chiselstyle_aspect_ratio_row">
+                  <property name="title" translatable="yes">Nib Aspect Ratio</property>
+                  <property name="subtitle" translatable="yes">Ratio of width to thickness (default 5:1)</property>
+                  <property name="adjustment">chiselstyle_aspect_ratio_adj</property>
+                  <property name="numeric">true</property>
+                  <property name="digits">1</property>
+                  <property name="climb-rate">0.5</property>
+                </object>
+              </child>
+              <child>
+                <object class="AdwSpinRow" id="chiselstyle_fixed_angle_row">
+                  <property name="title" translatable="yes">Nib Angle (Degrees)</property>
+                  <property name="subtitle" translatable="yes">Fixed angle when pen tilt is not used (default 45°)</property>
+                  <property name="adjustment">chiselstyle_fixed_angle_adj</property>
+                  <property name="numeric">true</property>
+                  <property name="digits">0</property>
+                  <property name="climb-rate">5.0</property>
+                </object>
+              </child>
+              <child>
+                <object class="AdwSwitchRow" id="chiselstyle_tilt_responsive_row">
+                  <property name="title" translatable="yes">Stylus Tilt and Rotation</property>
+                  <property name="subtitle" translatable="yes">Dynamically orient nib with pen tilt or rotation</property>
+                  <property name="active">true</property>
                 </object>
               </child>
             </object>
@@ -211,6 +268,20 @@ Results in the best looking handwriting.</property>
     <object class="GtkAdjustment" id="texturedstyle_density_adj">
       <property name="step-increment">0.1</property>
       <property name="page-increment">2</property>
+    </object>
+    <object class="GtkAdjustment" id="chiselstyle_aspect_ratio_adj">
+      <property name="lower">1.0</property>
+      <property name="upper">20.0</property>
+      <property name="value">5.0</property>
+      <property name="step-increment">0.5</property>
+      <property name="page-increment">1.0</property>
+    </object>
+    <object class="GtkAdjustment" id="chiselstyle_fixed_angle_adj">
+      <property name="lower">0.0</property>
+      <property name="upper">180.0</property>
+      <property name="value">45.0</property>
+      <property name="step-increment">5.0</property>
+      <property name="page-increment">15.0</property>
     </object>
   </template>
 </interface>

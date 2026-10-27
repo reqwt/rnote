@@ -6,8 +6,17 @@ use std::path::{Component, Path, PathBuf};
 pub(crate) fn lib_dir() -> anyhow::Result<PathBuf> {
     if cfg!(target_os = "windows") {
         let exec_dir = exec_parent_dir()?;
-
-        Ok(exec_dir.join("..\\lib"))
+        let candidate = exec_dir.join("..\\lib");
+        if candidate.exists() {
+            Ok(candidate)
+        } else {
+            let msys_lib = PathBuf::from("C:\\msys64\\ucrt64\\lib");
+            if msys_lib.exists() {
+                Ok(msys_lib)
+            } else {
+                Ok(candidate)
+            }
+        }
     } else if cfg!(target_os = "macos") {
         let canonicalized_exec_dir = exec_parent_dir()?.canonicalize()?;
 
@@ -24,8 +33,17 @@ pub(crate) fn lib_dir() -> anyhow::Result<PathBuf> {
 pub(crate) fn data_dir() -> anyhow::Result<PathBuf> {
     if cfg!(target_os = "windows") {
         let exec_dir = exec_parent_dir()?;
-
-        Ok(exec_dir.join("..\\share"))
+        let candidate = exec_dir.join("..\\share");
+        if candidate.exists() {
+            Ok(candidate)
+        } else {
+            let msys_share = PathBuf::from("C:\\msys64\\ucrt64\\share");
+            if msys_share.exists() {
+                Ok(msys_share)
+            } else {
+                Ok(candidate)
+            }
+        }
     } else if cfg!(target_os = "macos") {
         let canonicalized_exec_dir = exec_parent_dir()?.canonicalize()?;
 
@@ -46,8 +64,17 @@ pub(crate) fn pkg_data_dir() -> anyhow::Result<PathBuf> {
 pub(crate) fn locale_dir() -> anyhow::Result<PathBuf> {
     if cfg!(target_os = "windows") {
         let exec_dir = exec_parent_dir()?;
-
-        Ok(exec_dir.join("..\\share\\locale"))
+        let candidate = exec_dir.join("..\\share\\locale");
+        if candidate.exists() {
+            Ok(candidate)
+        } else {
+            let msys_locale = PathBuf::from("C:\\msys64\\ucrt64\\share\\locale");
+            if msys_locale.exists() {
+                Ok(msys_locale)
+            } else {
+                Ok(candidate)
+            }
+        }
     } else if cfg!(target_os = "macos") {
         let canonicalized_exec_dir = exec_parent_dir()?.canonicalize()?;
 
@@ -66,10 +93,47 @@ pub(crate) fn setup_env() -> anyhow::Result<()> {
     if cfg!(target_os = "windows") {
         let data_dir = data_dir()?;
         let lib_dir = lib_dir()?;
+        let exec_dir = exec_parent_dir()?;
 
         // SAFETY: this setup only happens while still being single-threaded
         unsafe {
-            std::env::set_var("XDG_DATA_DIRS", data_dir);
+            let mut xdg_data_dirs = Vec::new();
+            if data_dir.exists() {
+                xdg_data_dirs.push(data_dir);
+            }
+            let msys_share = PathBuf::from("C:\\msys64\\ucrt64\\share");
+            if msys_share.exists() && !xdg_data_dirs.contains(&msys_share) {
+                xdg_data_dirs.push(msys_share);
+            }
+            if let Some(existing) = std::env::var_os("XDG_DATA_DIRS") {
+                xdg_data_dirs.extend(std::env::split_paths(&existing));
+            }
+            if let Ok(joined) = std::env::join_paths(xdg_data_dirs) {
+                std::env::set_var("XDG_DATA_DIRS", joined);
+            }
+
+            if std::env::var_os("GSETTINGS_SCHEMA_DIR").is_none() {
+                let mut schema_dirs = Vec::new();
+                let build_schemas = exec_dir.join("schemas");
+                if build_schemas.join("gschemas.compiled").exists() {
+                    schema_dirs.push(build_schemas);
+                }
+                let target_schemas = exec_dir.join("..\\..\\schemas");
+                if target_schemas.join("gschemas.compiled").exists() {
+                    schema_dirs.push(target_schemas);
+                }
+                let msys_schemas = PathBuf::from("C:\\msys64\\ucrt64\\share\\glib-2.0\\schemas");
+                if msys_schemas.join("gschemas.compiled").exists() {
+                    schema_dirs.push(msys_schemas);
+                }
+
+                if let Ok(joined) = std::env::join_paths(schema_dirs) {
+                    if !joined.is_empty() {
+                        std::env::set_var("GSETTINGS_SCHEMA_DIR", joined);
+                    }
+                }
+            }
+
             std::env::set_var(
                 "GDK_PIXBUF_MODULEDIR",
                 lib_dir.join("gdk-pixbuf-2.0\\2.10.0\\loaders"),

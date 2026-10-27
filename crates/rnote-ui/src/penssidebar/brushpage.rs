@@ -8,7 +8,9 @@ use gtk4::{
 use num_traits::cast::ToPrimitive;
 use rnote_compose::builders::PenPathBuilderType;
 use rnote_compose::style::PressureCurve;
+use rnote_compose::style::smooth::TipProfile;
 use rnote_compose::style::textured::{TexturedDotsDistribution, TexturedOptions};
+use rnote_engine::ext::GdkRGBAExt;
 use rnote_engine::pens::pensconfig::BrushConfig;
 use rnote_engine::pens::pensconfig::brushconfig::{BrushStyle, SolidOptions};
 
@@ -25,6 +27,8 @@ mod imp {
         #[template_child]
         pub(crate) brushstyle_textured_toggle: TemplateChild<ToggleButton>,
         #[template_child]
+        pub(crate) brushstyle_chisel_toggle: TemplateChild<ToggleButton>,
+        #[template_child]
         pub(crate) brushconfig_menubutton: TemplateChild<MenuButton>,
         #[template_child]
         pub(crate) brushconfig_popover: TemplateChild<Popover>,
@@ -39,7 +43,17 @@ mod imp {
         #[template_child]
         pub(crate) brush_buildertype_modeled: TemplateChild<adw::ActionRow>,
         #[template_child]
+        pub(crate) solidstyle_tip_profile_row: TemplateChild<adw::ComboRow>,
+        #[template_child]
         pub(crate) solidstyle_pressure_curves_row: TemplateChild<adw::ComboRow>,
+        #[template_child]
+        pub(crate) chisel_options_group: TemplateChild<adw::PreferencesGroup>,
+        #[template_child]
+        pub(crate) chiselstyle_aspect_ratio_row: TemplateChild<adw::SpinRow>,
+        #[template_child]
+        pub(crate) chiselstyle_fixed_angle_row: TemplateChild<adw::SpinRow>,
+        #[template_child]
+        pub(crate) chiselstyle_tilt_responsive_row: TemplateChild<adw::SwitchRow>,
         #[template_child]
         pub(crate) texturedstyle_density_row: TemplateChild<adw::SpinRow>,
         #[template_child]
@@ -107,6 +121,8 @@ impl RnBrushPage {
             Some(BrushStyle::Solid)
         } else if self.imp().brushstyle_textured_toggle.is_active() {
             Some(BrushStyle::Textured)
+        } else if self.imp().brushstyle_chisel_toggle.is_active() {
+            Some(BrushStyle::Chisel)
         } else {
             None
         }
@@ -117,6 +133,7 @@ impl RnBrushPage {
             BrushStyle::Marker => self.imp().brushstyle_marker_toggle.set_active(true),
             BrushStyle::Solid => self.imp().brushstyle_solid_toggle.set_active(true),
             BrushStyle::Textured => self.imp().brushstyle_textured_toggle.set_active(true),
+            BrushStyle::Chisel => self.imp().brushstyle_chisel_toggle.set_active(true),
         }
     }
 
@@ -128,6 +145,26 @@ impl RnBrushPage {
             .brush_config
             .style = brush_style;
         self.stroke_width_picker().deselect_setters();
+
+        let active_stroke_color = appwindow
+            .overlays()
+            .colorpicker()
+            .stroke_color()
+            .into_compose_color();
+        let active_fill_color = appwindow
+            .overlays()
+            .colorpicker()
+            .fill_color()
+            .into_compose_color();
+        {
+            let mut engine_config = appwindow.engine_config().write();
+            engine_config
+                .pens_config
+                .set_all_stroke_colors(active_stroke_color);
+            engine_config
+                .pens_config
+                .set_all_fill_colors(active_fill_color);
+        }
 
         match brush_style {
             BrushStyle::Marker => {
@@ -161,6 +198,18 @@ impl RnBrushPage {
                     .pens_config
                     .brush_config
                     .textured_options
+                    .stroke_width;
+                self.imp()
+                    .stroke_width_picker
+                    .set_stroke_width(stroke_width);
+            }
+            BrushStyle::Chisel => {
+                let stroke_width = appwindow
+                    .engine_config()
+                    .read()
+                    .pens_config
+                    .brush_config
+                    .chisel_options
                     .stroke_width;
                 self.imp()
                     .stroke_width_picker
@@ -204,6 +253,46 @@ impl RnBrushPage {
             .solidstyle_pressure_curves_row
             .get()
             .set_selected(position);
+    }
+
+    pub(crate) fn solidstyle_tip_profile(&self) -> TipProfile {
+        match self.imp().solidstyle_tip_profile_row.get().selected() {
+            1 => self.chisel_tip_profile(),
+            _ => TipProfile::Circular,
+        }
+    }
+
+    pub(crate) fn set_solidstyle_tip_profile(&self, tip_profile: TipProfile) {
+        match tip_profile {
+            TipProfile::Circular => {
+                self.imp().solidstyle_tip_profile_row.get().set_selected(0);
+            }
+            TipProfile::Chisel {
+                aspect_ratio,
+                fixed_angle,
+                use_stylus_tilt,
+            } => {
+                self.imp().solidstyle_tip_profile_row.get().set_selected(1);
+                self.imp().chiselstyle_aspect_ratio_row.set_value(aspect_ratio);
+                self.imp()
+                    .chiselstyle_fixed_angle_row
+                    .set_value(fixed_angle.to_degrees());
+                self.imp()
+                    .chiselstyle_tilt_responsive_row
+                    .set_active(use_stylus_tilt);
+            }
+        }
+    }
+
+    pub(crate) fn chisel_tip_profile(&self) -> TipProfile {
+        let aspect_ratio = self.imp().chiselstyle_aspect_ratio_row.value();
+        let fixed_angle = self.imp().chiselstyle_fixed_angle_row.value().to_radians();
+        let use_stylus_tilt = self.imp().chiselstyle_tilt_responsive_row.is_active();
+        TipProfile::Chisel {
+            aspect_ratio,
+            fixed_angle,
+            use_stylus_tilt,
+        }
     }
 
     pub(crate) fn texturedstyle_dots_distribution(&self) -> TexturedDotsDistribution {
@@ -292,6 +381,15 @@ impl RnBrushPage {
                                 .textured_options
                                 .stroke_width = stroke_width;
                         }
+                        BrushStyle::Chisel => {
+                            appwindow
+                                .engine_config()
+                                .write()
+                                .pens_config
+                                .brush_config
+                                .chisel_options
+                                .stroke_width = stroke_width;
+                        }
                     }
                 }
             ),
@@ -352,6 +450,24 @@ impl RnBrushPage {
             }
         ));
 
+        imp.brushstyle_chisel_toggle.connect_toggled(clone!(
+            #[weak(rename_to=brushpage)]
+            self,
+            #[weak]
+            appwindow,
+            move |toggle| {
+                if !toggle.is_active() {
+                    return;
+                }
+
+                let Some(brush_style) = brushpage.brush_style() else {
+                    return;
+                };
+
+                brushpage.apply_brush_style_selection(&appwindow, brush_style);
+            }
+        ));
+
         // Builder type
         imp.brush_buildertype_listbox.connect_row_selected(clone!(
             #[weak(rename_to=brushpage)]
@@ -372,6 +488,26 @@ impl RnBrushPage {
         ));
 
         // Solid style
+        // Tip profile
+        imp.solidstyle_tip_profile_row
+            .get()
+            .connect_selected_notify(clone!(
+                #[weak(rename_to=brushpage)]
+                self,
+                #[weak]
+                appwindow,
+                move |_| {
+                    let tip_profile = brushpage.solidstyle_tip_profile();
+                    appwindow
+                        .engine_config()
+                        .write()
+                        .pens_config
+                        .brush_config
+                        .solid_options
+                        .tip_profile = tip_profile;
+                }
+            ));
+
         // Pressure curve
         imp.solidstyle_pressure_curves_row
             .get()
@@ -390,6 +526,66 @@ impl RnBrushPage {
                         .pressure_curve = brushpage.solidstyle_pressure_curve();
                 }
             ));
+
+        // Chisel style
+        imp.chiselstyle_aspect_ratio_row.set_range(1.0, 50.0);
+        imp.chiselstyle_aspect_ratio_row.set_value(5.0);
+        imp.chiselstyle_fixed_angle_row.set_range(0.0, 360.0);
+        imp.chiselstyle_fixed_angle_row.set_value(45.0);
+
+        let update_chisel_profile = clone!(
+            #[weak(rename_to=brushpage)]
+            self,
+            #[weak]
+            appwindow,
+            move || {
+                let profile = brushpage.chisel_tip_profile();
+                let mut engine_config = appwindow.engine_config().write();
+                engine_config
+                    .pens_config
+                    .brush_config
+                    .chisel_options
+                    .tip_profile = profile;
+                if matches!(
+                    engine_config
+                        .pens_config
+                        .brush_config
+                        .solid_options
+                        .tip_profile,
+                    TipProfile::Chisel { .. }
+                ) {
+                    engine_config
+                        .pens_config
+                        .brush_config
+                        .solid_options
+                        .tip_profile = profile;
+                }
+            }
+        );
+
+        imp.chiselstyle_aspect_ratio_row.connect_changed(clone!(
+            #[strong]
+            update_chisel_profile,
+            move |_| {
+                update_chisel_profile();
+            }
+        ));
+
+        imp.chiselstyle_fixed_angle_row.connect_changed(clone!(
+            #[strong]
+            update_chisel_profile,
+            move |_| {
+                update_chisel_profile();
+            }
+        ));
+
+        imp.chiselstyle_tilt_responsive_row.connect_active_notify(clone!(
+            #[strong]
+            update_chisel_profile,
+            move |_| {
+                update_chisel_profile();
+            }
+        ));
 
         // Textured style
         // Density
@@ -445,6 +641,21 @@ impl RnBrushPage {
             .clone();
 
         self.set_solidstyle_pressure_curve(brush_config.solid_options.pressure_curve);
+        self.set_solidstyle_tip_profile(brush_config.solid_options.tip_profile);
+        match brush_config.chisel_options.tip_profile {
+            TipProfile::Chisel {
+                aspect_ratio,
+                fixed_angle,
+                use_stylus_tilt,
+            } => {
+                imp.chiselstyle_aspect_ratio_row.set_value(aspect_ratio);
+                imp.chiselstyle_fixed_angle_row
+                    .set_value(fixed_angle.to_degrees());
+                imp.chiselstyle_tilt_responsive_row
+                    .set_active(use_stylus_tilt);
+            }
+            _ => {}
+        }
         imp.texturedstyle_density_row
             .set_value(brush_config.textured_options.density);
         self.set_texturedstyle_distribution_variant(brush_config.textured_options.distribution);
@@ -464,6 +675,10 @@ impl RnBrushPage {
             BrushStyle::Textured => {
                 imp.stroke_width_picker
                     .set_stroke_width(brush_config.textured_options.stroke_width);
+            }
+            BrushStyle::Chisel => {
+                imp.stroke_width_picker
+                    .set_stroke_width(brush_config.chisel_options.stroke_width);
             }
         }
     }

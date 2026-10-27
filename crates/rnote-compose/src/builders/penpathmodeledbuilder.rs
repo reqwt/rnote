@@ -177,7 +177,13 @@ impl PenPathModeledBuilder {
             Ok(results) => self.buffer.extend(results.into_iter().map(|r| {
                 let (x, y) = r.pos;
                 let pressure = r.pressure;
-                Element::new(Vector2::new(x, y), pressure)
+                Element::new_with_tilt(
+                    Vector2::new(x, y),
+                    pressure,
+                    element.tilt_x,
+                    element.tilt_y,
+                    element.orientation,
+                )
             })),
             Err(e) => {
                 match e {
@@ -227,7 +233,13 @@ impl PenPathModeledBuilder {
                     .map(|r| {
                         let (x, y) = r.pos;
                         let pressure = r.pressure;
-                        Element::new(Vector2::new(x, y), pressure)
+                        Element::new_with_tilt(
+                            Vector2::new(x, y),
+                            pressure,
+                            self.last_element.tilt_x,
+                            self.last_element.tilt_y,
+                            self.last_element.orientation,
+                        )
                     })
                     .collect::<Vec<Element>>(),
                 Err(e) => {
@@ -259,7 +271,13 @@ impl PenPathModeledBuilder {
                 self.buffer.extend(results.into_iter().map(|r| {
                     let (x, y) = r.pos;
                     let pressure = r.pressure;
-                    Element::new(Vector2::new(x, y), pressure)
+                    Element::new_with_tilt(
+                        Vector2::new(x, y),
+                        pressure,
+                        element.tilt_x,
+                        element.tilt_y,
+                        element.orientation,
+                    )
                 }));
             }
             Err(e) => {

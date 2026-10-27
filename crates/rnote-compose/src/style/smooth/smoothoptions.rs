@@ -31,6 +31,9 @@ pub struct SmoothOptions {
     /// Line cap.
     #[serde(rename = "line_cap")]
     pub line_cap: LineCap,
+    /// Tip profile (circular or calligraphic chisel flat nib).
+    #[serde(default, rename = "tip_profile")]
+    pub tip_profile: TipProfile,
     /// The inner piet::StrokeStyle, computed using the stroke_width, line_style, and line_cap.
     #[serde(skip)]
     pub piet_stroke_style: piet::StrokeStyle,
@@ -41,6 +44,7 @@ impl Default for SmoothOptions {
         let stroke_width: f64 = 2.0;
         let line_style = LineStyle::default();
         let line_cap = LineCap::default();
+        let tip_profile = TipProfile::default();
         Self {
             stroke_width,
             stroke_color: Some(Color::BLACK),
@@ -48,6 +52,7 @@ impl Default for SmoothOptions {
             pressure_curve: PressureCurve::default(),
             line_style,
             line_cap,
+            tip_profile,
             piet_stroke_style: Self::compute_piet_stroke_style(stroke_width, line_style, line_cap),
         }
     }
@@ -130,6 +135,8 @@ impl<'de> Deserialize<'de> for SmoothOptions {
             pub line_style: LineStyle,
             #[serde(rename = "line_cap")]
             pub line_cap: LineCap,
+            #[serde(default, rename = "tip_profile")]
+            pub tip_profile: TipProfile,
         }
 
         impl From<SmoothOptions> for SmoothOptionsPrecursor {
@@ -141,6 +148,7 @@ impl<'de> Deserialize<'de> for SmoothOptions {
                     pressure_curve: value.pressure_curve,
                     line_style: value.line_style,
                     line_cap: value.line_cap,
+                    tip_profile: value.tip_profile,
                 }
             }
         }
@@ -160,12 +168,72 @@ impl<'de> Deserialize<'de> for SmoothOptions {
             pressure_curve: precursor.pressure_curve,
             line_style: precursor.line_style,
             line_cap: precursor.line_cap,
+            tip_profile: precursor.tip_profile,
             piet_stroke_style: Self::compute_piet_stroke_style(
                 precursor.stroke_width,
                 precursor.line_style,
                 precursor.line_cap,
             ),
         })
+    }
+}
+
+/// The profile of the pen tip / nib.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename = "tip_profile")]
+pub enum TipProfile {
+    /// Traditional circular brush tip with uniform radius.
+    #[serde(rename = "circular")]
+    Circular,
+    /// Calligraphic chisel flat nib with anisotropic elliptical offset.
+    #[serde(rename = "chisel")]
+    Chisel {
+        /// Ratio between the major and minor axis (width vs thickness), e.g. 5.0 (5:1).
+        #[serde(default = "TipProfile::default_aspect_ratio")]
+        aspect_ratio: f64,
+        /// Fixed calligraphic angle in radians when stylus tilt is not used/available (default 45 deg, PI/4).
+        #[serde(default = "TipProfile::default_fixed_angle")]
+        fixed_angle: f64,
+        /// Whether to dynamically respond to stylus tilt and rotation.
+        #[serde(default = "TipProfile::default_use_stylus_tilt")]
+        use_stylus_tilt: bool,
+    },
+}
+
+impl Default for TipProfile {
+    fn default() -> Self {
+        Self::Circular
+    }
+}
+
+impl TipProfile {
+    /// Default aspect ratio for chisel nib (5:1 width to thickness)
+    pub const fn default_aspect_ratio() -> f64 {
+        5.0
+    }
+
+    /// Default fixed angle for chisel nib (45 degrees)
+    pub fn default_fixed_angle() -> f64 {
+        std::f64::consts::FRAC_PI_4 // 45 degrees
+    }
+
+    /// Default preference for responding to stylus tilt and orientation
+    pub const fn default_use_stylus_tilt() -> bool {
+        true
+    }
+
+    /// Creates a default chisel tip profile
+    pub fn chisel_default() -> Self {
+        Self::Chisel {
+            aspect_ratio: Self::default_aspect_ratio(),
+            fixed_angle: Self::default_fixed_angle(),
+            use_stylus_tilt: Self::default_use_stylus_tilt(),
+        }
+    }
+
+    /// Returns true if the tip profile is a chisel nib
+    pub fn is_chisel(&self) -> bool {
+        matches!(self, Self::Chisel { .. })
     }
 }
 

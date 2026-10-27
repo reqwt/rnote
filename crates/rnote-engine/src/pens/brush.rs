@@ -337,7 +337,7 @@ impl DrawableOnDoc for Brush {
                     BrushStyle::Marker => {
                         // Don't draw the marker, as the pen would render on top of other strokes, while the stroke itself would render underneath them.
                     }
-                    BrushStyle::Solid | BrushStyle::Textured => {
+                    BrushStyle::Solid | BrushStyle::Textured | BrushStyle::Chisel => {
                         path_builder.draw_styled(
                             cx,
                             preview_style,
